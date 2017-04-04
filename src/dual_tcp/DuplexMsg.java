@@ -3,107 +3,116 @@ package dual_tcp;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
-import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Scanner;
 
 /**
  * Created by gnidoc327 on 2017. 3. 29..
  */
 public class DuplexMsg {
-    private static final String DEFAULT_ADDRESS = "localhost"; //127.0.0.1
-    static String sendIp = DEFAULT_ADDRESS;
-    static int receivePort;
-    static int sendPort;
+    private static int myport;
+    private static ArrayList<EchoThread> threads;
+    private static ServerSocket serverSocket;
 
-    private static ReceiveThread receiveThread;
-    private Socket socket;
-    private DataOutputStream outToReceiver;
-    //    private static SendThread sendThread;
-
-    public static void main(String[] args){
+    public static void main(String args[]) throws IOException {
         if(args.length != 1){
-            helpPrint();
+            printHelpForArgs();
             return;
         }
 
-        receivePort = Integer.parseInt(args[0]);
+        threads = new ArrayList<>();
 
-        System.out.println("run port is "+receivePort+"\nwait for connect");
+        myport = Integer.parseInt(args[0]);
+        serverSocket = new ServerSocket(myport);
+        System.out.println("server start port number="+myport);
 
-        receiveThread = new ReceiveThread(receivePort);
-        receiveThread.run();
+        // 채팅 입력
+        new Thread(){
+            @Override
+            public void run() {
+                Scanner scanner = new Scanner(System.in);
 
-        //input opponent ip, port
-        System.out.println("input [ip] [port]");
-        Scanner scanner = new Scanner(System.in);
-
-        String inputString = scanner.nextLine();
-        String[] temps = inputString.split(" ");
-
-        sendIp = temps[0];
-        sendPort = Integer.parseInt(temps[1]);
-        System.out.println(sendIp+":"+sendPort+" - connecting try");
-
-        try {
-            Socket socket = new Socket(sendIp, sendPort);
-            DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
-
-            while(true){
-                String string = scanner.nextLine();
-                dataOutputStream.writeUTF(string+'\n');
+                while(true){
+                    //입력시 커맨드 분석
+                    String str = scanner.nextLine();
+                    String[] strings = str.split(" ");
+                    if(strings[0].equals("connect")){   //help참고
+                        try {
+                            connect(new Socket(strings[1], Integer.parseInt(strings[2])));
+                        } catch (IOException e) {
+                            //e.printStackTrace();
+                        } catch (ArrayIndexOutOfBoundsException e){
+                            printHelpForCommand();
+                        }
+                    //일반적인 입력은 send
+                    } else {
+                        for(EchoThread echoThread : threads){
+                            echoThread.sendMsg(str);
+                        }
+                    }
+                }
             }
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
+        }.start();
 
-    private static void helpPrint(){
-        System.out.println("[receive port]");
-    }
+        //접속 대기
+        while(true){
+            try {
+                System.out.println("wait for connection");
+                Socket socket = serverSocket.accept();
 
-    private static void send(){
-
-    }
-
-    private static class ReceiveThread extends Thread{
-        ServerSocket serverSocket;
-        Socket socket;
-        DataInputStream dataInputStream;
-        int port;
-
-        ReceiveThread(int port) {
-            this.port = port;
-        }
-
-        void waitForConnect() throws IOException {
-            serverSocket = new ServerSocket(port);
-            socket = serverSocket.accept();
-            InetAddress inetAddress = serverSocket.getInetAddress();
-            sendIp = inetAddress.getHostAddress();
-            sendPort = serverSocket.getLocalPort();
-            System.out.println(sendIp+":"+sendPort+" is connect\n");
-        }
-
-        void runServer() throws IOException {
-            dataInputStream = new DataInputStream(socket.getInputStream());
-            String string;
-
-            while(true){
-                string = dataInputStream.readUTF();
-                System.out.print(string);
+                connect(socket);
+            } catch (IOException e) {
+                //e.printStackTrace();
             }
         }
+    }
 
+    private static class EchoThread extends Thread{
+        private Socket socket;
+
+        EchoThread(Socket socket) {
+            this.socket = socket;
+        }
+
+        //수신
         @Override
         public void run() {
+            while(true){
+                try {
+                    DataInputStream dataInputStream = new DataInputStream(socket.getInputStream());
+                    System.out.println(dataInputStream.readUTF());
+                } catch (IOException e) {
+                    //e.printStackTrace();
+                }
+            }
+        }
+
+        //송신
+        void sendMsg(String sendString){
             try {
-                waitForConnect();
+                DataOutputStream dataOutputStream = new DataOutputStream(socket.getOutputStream());
+                System.out.println("send to "+socket.getInetAddress()+":"+socket.getPort()+" : "+sendString);
+                dataOutputStream.writeUTF(sendString);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
+    }
+
+    private static void connect(Socket socket){
+        System.out.println(socket.getInetAddress()+":"+socket.getPort()+" is connected");
+        EchoThread echoThread = new EchoThread(socket);
+        threads.add(echoThread);
+        echoThread.start();
+    }
+
+    private static void printHelpForCommand(){
+        System.out.println("Input Format - connect [ip] [port]");
+    }
+
+    private static void printHelpForArgs(){
+        System.out.println("Input Args - [port]");
     }
 }
