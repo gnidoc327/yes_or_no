@@ -43,6 +43,7 @@ public class DuplexMsg {
                             connect(new Socket(strings[1], Integer.parseInt(strings[2])));
                         } catch (IOException e) {
                             //e.printStackTrace();
+                            printErrorForHostLost();
                         } catch (ArrayIndexOutOfBoundsException e){
                             printHelpForCommand();
                         }
@@ -65,6 +66,7 @@ public class DuplexMsg {
                 connect(socket);
             } catch (IOException e) {
                 //e.printStackTrace();
+                printErrorForHostLost();
             }
         }
     }
@@ -82,7 +84,7 @@ public class DuplexMsg {
             while(true){
                 try {
                     DataInputStream dataInputStream = new DataInputStream(socket.getInputStream());
-                    System.out.println(dataInputStream.readUTF());
+                    System.out.println("receive to "+socket.getInetAddress()+":"+socket.getPort()+" : "+dataInputStream.readUTF());
                 } catch (IOException e) {
                     //e.printStackTrace();
                 }
@@ -114,5 +116,9 @@ public class DuplexMsg {
 
     private static void printHelpForArgs(){
         System.out.println("Input Args - [port]");
+    }
+
+    private static void printErrorForHostLost(){
+        System.err.println("socket not found. check for alive host");
     }
 }
